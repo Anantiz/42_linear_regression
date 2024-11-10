@@ -1,3 +1,4 @@
+#!python3
 from regression import LinearRegression
 import sys
 
@@ -11,17 +12,19 @@ def train_save_model():
         model.load_data(data_file)
     else:
         model.load_data()
-    ret = model.train()
+    if model.x_data is None or model.y_data is None:
+        print("\033[101mError:\033[0m Data could not be loaded", file=sys.stderr)
+        sys.exit(1)
 
+    ret = model.train()
     if not ret:
-        print("Error: Model could not be trained", file=sys.stderr)
+        print("\033[101mError:\033[0m Model could not be trained", file=sys.stderr)
         sys.exit(1)
     if ac >= 4:
         save_file = sys.argv[3]
         model.save_model(save_file)
     else:
         model.save_model()
-
 
 def load_evaluate_model():
     model = LinearRegression()
@@ -31,7 +34,7 @@ def load_evaluate_model():
     else:
         model.load_model()
     if not model.trained:
-        print("Error: Model could not be loaded", file=sys.stderr)
+        print("\033[101mError:\033[0m Model could not be loaded", file=sys.stderr)
         sys.exit(1)
     if ac >= 4:
         test_data = sys.argv[3]
@@ -39,15 +42,25 @@ def load_evaluate_model():
     else:
         model.load_data()
     if model.x_data is None or model.y_data is None:
-        print("Error: Data could not be loaded", file=sys.stderr)
+        print("\033[101mError:\033[0m Data could not be loaded", file=sys.stderr)
         sys.exit(1)
     model.compare_data()
 
+def plot_data():
+    model = LinearRegression()
+    ac = len(sys.argv)
+    if ac >= 3:
+        data_file = sys.argv[2]
+        model.load_data(data_file)
+    else:
+        model.load_data()
+    model.plot_data()
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print("Usage:\n\
             python3 script.py train data_file[='data_csv'] save_file[='ft_linear_model.csv']\n\
+            python3 script.py plot data_file[='data_csv']\n\
             python3 script.py test model_weights[='ft_linear_model.csv'] data_file_to_compare[='data_csv']\n", file=sys.stderr)
         sys.exit(1)
     try:
@@ -56,6 +69,8 @@ if __name__ == '__main__':
             train_save_model()
         elif mode == 'test':
             load_evaluate_model()
+        elif mode == 'plot':
+            plot_data()
     except Exception as e:
-        print(e, file=sys.stderr)
+        print(f"\033[101mCaught Exception:\033[0m {e}", file=sys.stderr)
         sys.exit(1)

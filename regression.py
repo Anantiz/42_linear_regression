@@ -8,12 +8,35 @@ def mean(data):
     return sum(data) / len(data)
 
 def variance(data):
-    mu = mean(data)
-    return sum([(x - mu)**2 for x in data]) / len(data)
+    """
+    Turns out there is something called "Catastrophic cancellation"
+    It's worse for Floats than ints so I'll just use ints -\_(d-b)_/-
+
+    Given as floats x^2 and y^2:
+    The naive attempt to compute the mathematical function x^2 - y^2 by float arithmetic
+     is subject to catastrophic cancellation when x and y are close in magnitude
+     because the subtraction can expose the rounding errors in the squaring.
+    The alternative factoring (x + y) (x - y) by the float arithmetic
+     avoids catastrophic cancellation because it avoids introducing rounding error
+     leading into the subtraction.
+    """
+    mu = int(mean(data))
+    return sum([(int(x) - mu)**2 for x in data]) / len(data)
 
 def standard_deviation(data):
-    mu = mean(data)
-    return math.sqrt(sum([(x - mu)**2 for x in data]) / len(data))
+    mu =  int(mean(data))
+    return math.sqrt(sum([(int(x) - mu)**2 for x in data]) / len(data))
+
+def min_max_normalization(data):
+    """Scale all data between 0 and 1 to reduce magnitude interference"""
+    if data is None:
+        print(f"Empty data, cannot normalize", file=sys.stderr)
+        return []
+    v_min = min(data)
+    v_max = max(data)
+    v_diff = v_max - v_min
+    normalized = [(val - v_min)/v_diff for val in data]
+    return normalized
 
 class LinearRegression():
     """
@@ -26,8 +49,8 @@ class LinearRegression():
         # First order polynomials only (Very unexciting but that's what the assignment asks for)
         self.k = 0
         self.x_coefficient = 0
+        self.learning_rate = 0.02
         self.trained = False
-        self.lr = 0.01 # Learning rate
         self.x_data = None
         self.y_data = None
         self.labels = ('X', 'Y')
@@ -100,9 +123,23 @@ class LinearRegression():
         self.x_data = None
         self.y_data = None
 
+    def plot_data(self, x=None, y=None):
+        if self.x_data is None:
+            print("Error: No data loaded, cannot plot", file=sys.stderr)
+            return False
+        if not x:
+            x = self.x_data
+        if not y:
+            y =self.y_data
+        plt.plot(x, y, 'ro')
+        plt.title("Data")
+        plt.xlabel(self.labels[0])
+        plt.ylabel(self.labels[1])
+        plt.show()
+
     def compare_data(self):
         R = self.Rsquared()
-        print(f"R^2: {R}\nThis is the precisions/acuracy of the model, 1 is perfect, 0 is as good as the mean, non-normalized value means the model sucks")
+        print(f"R^2: {R}\nThis is the precisions/acuracy of the model, 1 is perfect, 0 is no better than the mean, non-normalized value means the model sucks")
         predicted = [self.predict(x) for x in self.x_data]
         plt.plot(self.x_data, self.y_data, 'ro', label='Data')
         plt.plot(self.x_data, predicted, 'b-', label='Model-prediction')
@@ -111,39 +148,37 @@ class LinearRegression():
         plt.ylabel(self.labels[1])
         plt.show()
 
-    def train(self, training_cycles_count=10_000, reset=True, normalize=True):
+    def train(self, training_cycles_count=50_000, normalize=True):
         """
         Train the model with the data in the file
         """
         def fit_polynomial(training_cycles_count, x_data, y_data) -> bool:
             """ Fit polynomial for the given data"""
-            m = len(x_data)
-            Nr = 1 / m
-            update_ratio = self.lr * Nr
-            print(f"Starting training with {training_cycles_count} cycles on {m} data points")
-            print(f"X data: {x_data}")
+            print(f"Starting training with {training_cycles_count} cycles on {len(x_data)} data points")
+            m = len(x_data) # Intermediary cuz it's cleaner
+            Nr = 1 / m      # Normalization ratio for the size of the data
+            step_size_ratio  = self.learning_rate * Nr
             for i in range(training_cycles_count):
                 grad_k = sum([(self.predict(x) - y) for x, y in zip(x_data, y_data)])
-                grad_x_coef = sum([(self.predict(x) - y) * x for x, y in zip(x_data, y_data)])
-                self.k -= update_ratio * grad_k
-                self.x_coefficient -= update_ratio * grad_x_coef
+                grad_x_coef = sum([(self.predict(x) - y)*x for x, y in zip(x_data, y_data)])
+                self.k -= step_size_ratio * grad_k
+                self.x_coefficient -= step_size_ratio * grad_x_coef
+                R = self.Rsquared()
+                # if (i % (training_cycles_count/10)) == 0 or i in [1, 2, 5, 10, 50, 100]:
+                #     print(f"Cycle {i}: k={self.k}, x_coefficient={self.x_coefficient}, R^2={R}")
 
-        if reset:
-            self.k = 0
-            self.x_coefficient = 0
-            self.trained = False
         if self.x_data is None:
             print("Error: No data loaded, cannot train", file=sys.stderr)
             return False
-        if normalize == False:
-            fit_polynomial(training_cycles_count, self.x_data, self.y_data)
-        else:
-            mean_x = mean(self.x_data)
-            dev_x = standard_deviation(self.x_data)
-            norm_x = [(x-mean_x) / dev_x for x in self.x_data]
-            fit_polynomial(training_cycles_count, norm_x, self.y_data)
-        self.trained = True
+        x_used = self.x_data
+        y_used = self.y_data
+        if normalize == True:
+            x_used = min_max_normalization(x_used)
+        fit_polynomial(training_cycles_count, x_used, y_used)
+        if normalize == True:
+            self.x_coefficient /= max(self.x_data) # Denormalize the coefficient
         print(f"Model trained: k={self.k}, x_coefficient={self.x_coefficient}, R^2={self.Rsquared()}")
+        self.trained = True
         return True
 
     def Rsquared(self):
@@ -168,4 +203,5 @@ class LinearRegression():
         return R
 
     def predict(self, x):
-        return self.k + self.x_coefficient * x
+        E = self.k + self.x_coefficient * x
+        return E
