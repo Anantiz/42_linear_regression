@@ -56,9 +56,31 @@ def plot_data():
         model.load_data()
     model.plot_data()
 
+def prompt_predict():
+    model = LinearRegression()
+    ac = len(sys.argv)
+    if ac >= 3:
+        model.load_model(sys.argv[2])
+    else:
+        model.load_model()
+    if not model.trained:
+        print("\033[101mError:\033[0m Model could not be loaded", file=sys.stderr)
+        sys.exit(1)
+    # Enter interactive mode
+    prompt_string = "Enter a value for X (The milage) to predict Y (The price), [ctrl+D] to exit: "
+    while True:
+        try:
+            x = float(input(prompt_string))
+        except ValueError:
+            print("Invalid input, please enter a valid float format (123.456)")
+            continue
+        y = model.predict(x)
+        print(f"Predicted Y: {y}")
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print("Usage:\n\
+            python3 script.py predict model_file[='ft_linear_model.csv']\n\
             python3 script.py train data_file[='data_csv'] save_file[='ft_linear_model.csv']\n\
             python3 script.py plot data_file[='data_csv']\n\
             python3 script.py test model_weights[='ft_linear_model.csv'] data_file_to_compare[='data_csv']\n", file=sys.stderr)
@@ -71,6 +93,11 @@ if __name__ == '__main__':
             load_evaluate_model()
         elif mode == 'plot':
             plot_data()
+        elif mode == 'predict':
+            prompt_predict()
+        else:
+            print(f"\033[101mError:\033[0m Unknown mode `{mode}`", file=sys.stderr)
+            sys.exit(1)
     except Exception as e:
-        print(f"\033[101mCaught Exception:\033[0m {e}", file=sys.stderr)
+        print(f"\033[101m\nCaught Exception:\033[0m {e}", file=sys.stderr)
         sys.exit(1)
